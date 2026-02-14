@@ -1,0 +1,687 @@
+{
+  "name": "YouTube Trending Niche Research and Content Idea Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "3a5ad521-07c0-41dd-a400-80974bd3923f",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        2544,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "youtubeApiKey",
+              "value": "YOUR_YOUTUBE_API_KEY",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "timeframe7Days",
+              "value": 7,
+              "type": "number"
+            },
+            {
+              "id": "id-3",
+              "name": "timeframe30Days",
+              "value": 30,
+              "type": "number"
+            },
+            {
+              "id": "id-4",
+              "name": "topNichesCount",
+              "value": 2,
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "f30ac0cf-cef8-4099-ad72-dcd904dd2ec8",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2768,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/youtube/v3/videos",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "part",
+              "value": "snippet,statistics"
+            },
+            {
+              "name": "chart",
+              "value": "mostPopular"
+            },
+            {
+              "name": "=regionCode",
+              "value": "US"
+            },
+            {
+              "name": "maxResults",
+              "value": "50"
+            },
+            {
+              "name": "key",
+              "value": "={{ $('Workflow Configuration').first().json.youtubeApiKey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "34f0a6ed-1431-46d8-8479-f1d1d20aa13b",
+      "name": "Fetch YouTube Trending Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2992,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process YouTube API response and rank niches\nconst items = $input.all();\n\n// Extract and process video data\nconst videoData = [];\nfor (const item of items) {\n  const videos = item.json.items || [];\n  \n  for (const video of videos) {\n    const snippet = video.snippet || {};\n    const statistics = video.statistics || {};\n    \n    videoData.push({\n      videoId: video.id,\n      title: snippet.title,\n      channelTitle: snippet.channelTitle,\n      channelId: snippet.channelId,\n      category: snippet.categoryId,\n      views: parseInt(statistics.viewCount) || 0,\n      likes: parseInt(statistics.likeCount) || 0,\n      comments: parseInt(statistics.commentCount) || 0,\n      publishedAt: snippet.publishedAt\n    });\n  }\n}\n\n// Group by category/niche\nconst nicheMap = {};\nfor (const video of videoData) {\n  const category = video.category || 'Unknown';\n  \n  if (!nicheMap[category]) {\n    nicheMap[category] = {\n      category: category,\n      videos: [],\n      totalViews: 0,\n      totalLikes: 0,\n      totalComments: 0,\n      channels: new Set()\n    };\n  }\n  \n  nicheMap[category].videos.push(video);\n  nicheMap[category].totalViews += video.views;\n  nicheMap[category].totalLikes += video.likes;\n  nicheMap[category].totalComments += video.comments;\n  nicheMap[category].channels.add(video.channelTitle);\n}\n\n// Calculate engagement metrics and rank niches\nconst niches = Object.values(nicheMap).map(niche => {\n  const videoCount = niche.videos.length;\n  const avgViews = niche.totalViews / videoCount;\n  const avgLikes = niche.totalLikes / videoCount;\n  const avgComments = niche.totalComments / videoCount;\n  const engagementRate = (niche.totalLikes + niche.totalComments) / niche.totalViews;\n  \n  // Find top performing videos in this niche\n  const topVideos = niche.videos\n    .sort((a, b) => b.views - a.views)\n    .slice(0, 3);\n  \n  return {\n    category: niche.category,\n    videoCount: videoCount,\n    totalViews: niche.totalViews,\n    avgViews: Math.round(avgViews),\n    totalLikes: niche.totalLikes,\n    avgLikes: Math.round(avgLikes),\n    totalComments: niche.totalComments,\n    avgComments: Math.round(avgComments),\n    engagementRate: engagementRate.toFixed(4),\n    uniqueChannels: niche.channels.size,\n    topChannels: topVideos.map(v => v.channelTitle),\n    topVideos: topVideos.map(v => ({\n      title: v.title,\n      channel: v.channelTitle,\n      views: v.views,\n      likes: v.likes\n    }))\n  };\n});\n\n// Rank niches by engagement score (combination of views and engagement rate)\nniches.sort((a, b) => {\n  const scoreA = a.avgViews * parseFloat(a.engagementRate) * 1000;\n  const scoreB = b.avgViews * parseFloat(b.engagementRate) * 1000;\n  return scoreB - scoreA;\n});\n\n// Return top 2 niches\nconst top5Niches = niches.slice(0, 2);\n\nreturn top5Niches.map(niche => ({ json: niche }));"
+      },
+      "id": "0aa9f112-1b9b-41ae-9084-093f9e4422ab",
+      "name": "Process and Rank Niches",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3216,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "nicheData",
+              "value": "={{ $json }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aec33f02-bb72-4edd-9339-19075084cad8",
+      "name": "Prepare Data for AI",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3440,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.nicheData }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are a YouTube content strategy expert specializing in automation and trending niches.\n\nYour task is to analyze the provided trending YouTube niche data and generate 10 creative, actionable content ideas for EACH niche.\n\nFor each content idea, provide:\n1. Title: A compelling, click-worthy video title\n2. Description: A brief description of the video concept (2-3 sentences)\n3. Hook: An attention-grabbing opening line for the video\n4. Keywords: 5-7 relevant keywords for SEO\n5. Estimated difficulty: Rate from 1-10 (1=easy to produce, 10=very complex)\n\nEnsure the content ideas are:\n- Aligned with current trends in the niche\n- Suitable for automation workflows\n- Diverse in format (tutorials, reviews, listicles, challenges, etc.)\n- Optimized for engagement and virality\n\nReturn your response in the structured JSON format defined by the output parser."
+        }
+      },
+      "id": "cf657fe4-5530-44fa-bee0-2e4bf090e0fe",
+      "name": "Content Ideas Generator",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        3728,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"niche\": {\n      \"type\": \"string\"\n    },\n    \"contentIdeas\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"title\": {\n            \"type\": \"string\"\n          },\n          \"description\": {\n            \"type\": \"string\"\n          },\n          \"hook\": {\n            \"type\": \"string\"\n          },\n          \"keywords\": {\n            \"type\": \"array\",\n            \"items\": {\n              \"type\": \"string\"\n            }\n          },\n          \"estimatedDifficulty\": {\n            \"type\": \"number\"\n          }\n        }\n      }\n    }\n  }\n}"
+      },
+      "id": "66ac89b1-7626-4f41-bf90-065c93dd5b8f",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        3920,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "Niche",
+              "value": "={{ $('Content Ideas Generator').first().json.output.niche }}",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "Content_Idea_Title",
+              "value": "={{ $json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "Description",
+              "value": "={{ $json.description }}",
+              "type": "string"
+            },
+            {
+              "id": "id-4",
+              "name": "Hook",
+              "value": "={{ $json.hook }}",
+              "type": "string"
+            },
+            {
+              "id": "id-5",
+              "name": "Keywords",
+              "value": "={{ $json.keywords.join(', ') }}",
+              "type": "string"
+            },
+            {
+              "id": "id-6",
+              "name": "Difficulty",
+              "value": "={{ $json.estimatedDifficulty }}",
+              "type": "string"
+            },
+            {
+              "id": "id-7",
+              "name": "Generated_Date",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bedea598-a711-4d19-8b08-b4ba084d67f5",
+      "name": "Format for Google Sheets",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4352,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEETS_DOCUMENT_ID",
+          "mode": "list",
+          "cachedResultName": "YouTube Content Ideas"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Niche": "={{ $json.Niche }}",
+            "Content_Idea_Title": "={{ $json.Content_Idea_Title }}",
+            "Description": "={{ $json.Description }}",
+            "Hook": "={{ $json.Hook }}",
+            "Keywords": "={{ $json.Keywords }}",
+            "Difficulty": "={{ $json.Difficulty }}",
+            "Generated_Date": "={{ $json.Generated_Date }}"
+          },
+          "matchingColumns": [
+            "Content_Idea_Title"
+          ],
+          "schema": [
+            {
+              "id": "Niche",
+              "displayName": "Niche",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Content_Idea_Title",
+              "displayName": "Content_Idea_Title",
+              "required": false,
+              "defaultMatch": true,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Description",
+              "displayName": "Description",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Hook",
+              "displayName": "Hook",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Keywords",
+              "displayName": "Keywords",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Difficulty",
+              "displayName": "Difficulty",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Generated_Date",
+              "displayName": "Generated_Date",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ba8bc914-dbe2-4cf4-89b5-81b2e3f3fc0e",
+      "name": "Save to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        4608,
+        304
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "options": {}
+      },
+      "id": "6a0f0a50-2053-4e60-8e41-5c2a93bb8cd5",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        3920,
+        544
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_GOOGLE_GEMINI_CREDENTIAL_ID",
+          "name": "Google Gemini API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "={{ $json.output.contentIdeas }}",
+        "options": {}
+      },
+      "id": "29d0e028-a2e6-462c-8c78-bbbc1e8f6f5e",
+      "name": "Split Content Ideas",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        4064,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "name": "code_tool",
+        "description": "Execute JavaScript code for data processing",
+        "workflowId": "={{ $execution.workflow.id }}",
+        "specifyInputSchema": true,
+        "jsonSchemaExample": "{\n  \"input\": \"string\"\n}"
+      },
+      "id": "c4f5b5b7-5a7a-47a7-b3e9-3e5e5e5e5e5e",
+      "name": "Code Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        3920,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "baseId": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "list",
+          "cachedResultName": "YouTube Content Database"
+        },
+        "tableId": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_TABLE_ID",
+          "mode": "list",
+          "cachedResultName": "Content Ideas"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Niche": "={{ $json.Niche }}",
+            "Content_Idea_Title": "={{ $json.Content_Idea_Title }}",
+            "Description": "={{ $json.Description }}",
+            "Hook": "={{ $json.Hook }}",
+            "Keywords": "={{ $json.Keywords }}",
+            "Difficulty": "={{ $json.Difficulty }}",
+            "Generated_Date": "={{ $json.Generated_Date }}"
+          },
+          "matchingColumns": [
+            "Content_Idea_Title"
+          ],
+          "schema": [
+            {
+              "id": "Niche",
+              "displayName": "Niche",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Content_Idea_Title",
+              "displayName": "Content_Idea_Title",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Description",
+              "displayName": "Description",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Hook",
+              "displayName": "Hook",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Keywords",
+              "displayName": "Keywords",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Difficulty",
+              "displayName": "Difficulty",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Generated_Date",
+              "displayName": "Generated_Date",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        4608,
+        112
+      ],
+      "id": "d5b09de6-713c-4ab8-b2a1-dca48a4c8d90",
+      "name": "Save to Airtable",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "YOUR_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable API Token"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Workflow Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Configuration": {
+      "main": [
+        [
+          {
+            "node": "Fetch YouTube Trending Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch YouTube Trending Data": {
+      "main": [
+        [
+          {
+            "node": "Process and Rank Niches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process and Rank Niches": {
+      "main": [
+        [
+          {
+            "node": "Prepare Data for AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Data for AI": {
+      "main": [
+        [
+          {
+            "node": "Content Ideas Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Content Ideas Generator",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format for Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Save to Airtable",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Content Ideas Generator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Content Ideas Generator": {
+      "main": [
+        [
+          {
+            "node": "Split Content Ideas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Content Ideas": {
+      "main": [
+        [
+          {
+            "node": "Format for Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Content Ideas Generator",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Google Sheets": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "GENERATED_ON_IMPORT",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "YOUR_N8N_INSTANCE_ID"
+  },
+  "id": "GENERATED_ON_IMPORT",
+  "tags": []
+}
