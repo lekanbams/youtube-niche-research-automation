@@ -233,14 +233,12 @@ The workflow analyzes each niche based on:
 
 ## 📸 Sample Output
 
-See the `/screenshots` folder for examples of:
+See the 'image.png' file for examples of:
 - n8n workflow canvas
 - Google Sheets populated with ideas
 - Airtable database view
 - AI-generated content samples
 - Niche analysis dashboard
-
-*(Add your screenshots after setup)*
 
 ## 🎯 Use Cases
 
